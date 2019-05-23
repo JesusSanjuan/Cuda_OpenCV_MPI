@@ -2,7 +2,8 @@
 #include "device_launch_parameters.h"
 #include <iostream>
 #include <string>
-
+#include <stdio.h>
+#include <stdlib.h>
 
 #include "opencv2/opencv.hpp"
 #include "opencv2/highgui.hpp"
@@ -12,9 +13,7 @@
 #include "opencv2/core/core.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
 #include <opencv2/imgproc.hpp>
-#include <iostream>
-#include <stdio.h>
-#include <stdlib.h>
+
 
 // GPU constant memory to hold our kernels (extremely fast access time)
 __constant__ float convolutionKernelStore[256];
@@ -33,8 +32,7 @@ __constant__ float convolutionKernelStore[256];
 * @param kHeight     kernel height
 * @param destination Destination image host pinned memory pointer
 */
-__global__ void convolve(unsigned char *source, int width, int height, int paddingX,
-	int paddingY, size_t kOffset, int kWidth, int kHeight, unsigned char *destination)
+__global__ void convolve(unsigned char *source, int width, int height, int paddingX, int paddingY, size_t kOffset, int kWidth, int kHeight, unsigned char *destination)
 {
 	//Distribucion de indices para la localizacion de los pixeles
 	int x = (blockIdx.x * blockDim.x) + threadIdx.x;
@@ -85,8 +83,6 @@ unsigned char* createImageBuffer(unsigned int bytes, unsigned char **devicePtr)
 	cudaHostGetDevicePointer(devicePtr, ptr, 0);
 	return ptr;
 }
-
-
 
 int main(int argc, char** argv)
 {
