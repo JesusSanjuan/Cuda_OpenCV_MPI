@@ -1,3 +1,5 @@
+
+
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include <iostream>
@@ -13,6 +15,7 @@
 #include "opencv2/core/core.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
 #include <opencv2/imgproc.hpp>
+
 
 
 // GPU constant memory to hold our kernels (extremely fast access time)
@@ -84,7 +87,7 @@ unsigned char* createImageBuffer(unsigned int bytes, unsigned char **devicePtr)
 	return ptr;
 }
 
-int main(int argc, char** argv)
+extern "C" int main(int argc, char** argv)
 {
 	//abrir la camara web
 	cv::VideoCapture camera(0);
@@ -93,10 +96,10 @@ int main(int argc, char** argv)
 		return -1;
 
 	//creando las ventanas de captura
-	cv::namedWindow("fuente");
+	cv::namedWindow("Entrada");
 	cv::namedWindow("Escala de grises");
 	cv::namedWindow("Blur");
-	cv::namedWindow("Sobel/convolucion");
+	cv::namedWindow("Sobel");
 
 	//Creando los eventos de temporizacion de cuda
 	cudaEvent_t start, stop;
@@ -143,7 +146,9 @@ int main(int argc, char** argv)
 	camera >> frame;
 	unsigned char *sourceDataDevice, *blurredDataDevice, *edgesDataDevice;
 	cv::Mat source(frame.size(), CV_8U,createImageBuffer(frame.size().width * frame.size().height,&sourceDataDevice));
+
 	cv::Mat blurred(frame.size(), CV_8U,createImageBuffer(frame.size().width * frame.size().height,&blurredDataDevice));
+
 	cv::Mat edges(frame.size(), CV_8U,createImageBuffer(frame.size().width * frame.size().height,&edgesDataDevice));
 
 	//Creando dos imagenes temporales en el GPU (para mantener los gradientes de sobel)
@@ -160,7 +165,6 @@ int main(int argc, char** argv)
 
 		//creacion del evento de inicio
 		cudaEventRecord(start);
-
 		{
 			//configuracion de los parametros de lanzamiento del kernel de convolucion
 			dim3 cblocks(frame.size().width / 16, frame.size().height / 16);
@@ -171,16 +175,13 @@ int main(int argc, char** argv)
 			dim3 pthreads(256, 1);
 
 			//Lanzamiento del kernel para ejecucion del filtro de Gauss
-			convolve << <cblocks, cthreads >> > (sourceDataDevice, frame.size().width,
-				frame.size().height, 0, 0, gaussianKernel5x5Offset, 5, 5, blurredDataDevice);
+			convolve << <cblocks, cthreads >> > (sourceDataDevice, frame.size().width,frame.size().height, 0, 0, gaussianKernel5x5Offset, 5, 5, blurredDataDevice);
 			//Lanzamiento del gradiente de sobel
 			//primero obtenemos cada uno de los gradientes X y Y 
 			//de kernels de 5x5 y posteriormente obtenemos el producto
-			convolve << <cblocks, cthreads >> > (blurredDataDevice, frame.size().width,
-				frame.size().height, 2, 2, sobelGradientXOffset, 3, 3, deviceGradientX);
-			convolve << <cblocks, cthreads >> > (blurredDataDevice, frame.size().width,
-				frame.size().height, 2, 2, sobelGradientYOffset, 3, 3, deviceGradientY);
-			pythagoras << <pblocks, pthreads >> > (deviceGradientX, deviceGradientY, edgesDataDevice);
+			convolve <<<cblocks, cthreads >>> (blurredDataDevice, frame.size().width,frame.size().height, 2, 2, sobelGradientXOffset, 3, 3, deviceGradientX);
+			convolve <<<cblocks, cthreads >>> (blurredDataDevice, frame.size().width,frame.size().height, 2, 2, sobelGradientYOffset, 3, 3, deviceGradientY);
+			pythagoras <<<pblocks, pthreads >>> (deviceGradientX, deviceGradientY, edgesDataDevice);
 
 			cudaThreadSynchronize();
 		}
@@ -192,6 +193,7 @@ int main(int argc, char** argv)
 		cudaEventElapsedTime(&ms, start, stop);
 		std::cout << "Tiempo transcurrido GPU : " << ms << " milisegundos" << std::endl;
 
+		
 		// mostramos los resultados de los procesamientos
 		cv::imshow("Entrada", frame);
 		cv::imshow("Escala de grises", source);
@@ -200,7 +202,6 @@ int main(int argc, char** argv)
 
 		if (cv::waitKey(1) == 27) break;
 	}
-
 	// Limpieza de variables y fin de la ejecución
 	cudaFreeHost(source.data);
 	cudaFreeHost(blurred.data);
