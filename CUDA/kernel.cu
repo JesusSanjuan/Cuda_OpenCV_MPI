@@ -1,11 +1,11 @@
-
-
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
+
 #include <iostream>
-#include <string>
 #include <stdio.h>
+#include <math.h> 
 #include <stdlib.h>
+#include <string.h>
 
 #include "opencv2/opencv.hpp"
 #include "opencv2/highgui.hpp"
