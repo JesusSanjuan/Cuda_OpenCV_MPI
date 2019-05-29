@@ -17,9 +17,8 @@
 #include <opencv2/imgproc.hpp>
 
 
-
 // GPU constant memory to hold our kernels (extremely fast access time)
-__constant__ float convolutionKernelStore[256];
+//__constant__ float convolutionKernelStore[256];
 
 /**
 * Convolution function for cuda.  Destination is expected to have the same width/height as source, but there will be a border
@@ -35,7 +34,7 @@ __constant__ float convolutionKernelStore[256];
 * @param kHeight     kernel height
 * @param destination Destination image host pinned memory pointer
 */
-__global__ void convolve(unsigned char *source, int width, int height, int paddingX, int paddingY, size_t kOffset, int kWidth, int kHeight, unsigned char *destination)
+/*__global__ void convolve(unsigned char *source, int width, int height, int paddingX, int paddingY, size_t kOffset, int kWidth, int kHeight, unsigned char *destination)
 {
 	//Distribucion de indices para la localizacion de los pixeles
 	int x = (blockIdx.x * blockDim.x) + threadIdx.x;
@@ -64,10 +63,10 @@ __global__ void convolve(unsigned char *source, int width, int height, int paddi
 	}
 	//Promedio de la suma
 	destination[(y * width) + x] = (unsigned char)sum;
-}
+}*/
 
 //utilizacion del teorema de pitagoras a lo largo del vector en el gpu
-__global__ void pythagoras(unsigned char *a, unsigned char *b, unsigned char *c)
+/*__global__ void pythagoras(unsigned char *a, unsigned char *b, unsigned char *c)
 {
 	int idx = (blockIdx.x * blockDim.x) + threadIdx.x;
 
@@ -75,9 +74,10 @@ __global__ void pythagoras(unsigned char *a, unsigned char *b, unsigned char *c)
 	float bf = float(b[idx]);
 
 	c[idx] = (unsigned char)sqrtf(af*af + bf * bf);
-}
+}*/
 
 //creacion de un buffer de imagenes, regresando al host, pasando del dispositivo al host de puntero a puntero
+
 unsigned char* createImageBuffer(unsigned int bytes, unsigned char **devicePtr)
 {
 	unsigned char *ptr = NULL;
@@ -96,10 +96,8 @@ extern "C" int main(int argc, char** argv)
 		return -1;
 
 	//creando las ventanas de captura
-	cv::namedWindow("Entrada");
-	cv::namedWindow("Escala de grises");
-	cv::namedWindow("Blur");
-	cv::namedWindow("Sobel");
+	cv::namedWindow("Entrada",CV_WINDOW_NORMAL);
+	cv::namedWindow("Escala de grises", CV_WINDOW_NORMAL);
 
 	//Creando los eventos de temporizacion de cuda
 	cudaEvent_t start, stop;
@@ -107,54 +105,35 @@ extern "C" int main(int argc, char** argv)
 	cudaEventCreate(&stop);
 
 	// Creando el kernel gausiano (sum = 159)
-	const float gaussianKernel5x5[25] =
+	/*const float gaussianKernel5x5[25] =
 	{
 		2.f / 159.f, 4.f / 159.f, 5.f / 159.f, 4.f / 159.f, 2.f / 159.f,
 		4.f / 159.f, 9.f / 159.f, 12.f / 159.f, 9.f / 159.f, 4.f / 159.f,
 		5.f / 159.f, 12.f / 159.f, 15.f / 159.f, 12.f / 159.f, 5.f / 159.f,
 		4.f / 159.f, 9.f / 159.f, 12.f / 159.f, 9.f / 159.f, 4.f / 159.f,
 		2.f / 159.f, 4.f / 159.f, 5.f / 159.f, 4.f / 159.f, 2.f / 159.f,
-	};
+	};*/
 
-	cudaMemcpyToSymbol(convolutionKernelStore,gaussianKernel5x5, sizeof(gaussianKernel5x5), 0);
+	//cudaMemcpyToSymbol(convolutionKernelStore,gaussianKernel5x5, sizeof(gaussianKernel5x5), 0);
 
-	const size_t gaussianKernel5x5Offset = 0;
+	//const size_t gaussianKernel5x5Offset = 0;
 
 	// Gradientes de sobel
-	const float sobelGradientX[9] =
-	{
-		-1.f, 0.f, 1.f,
-		-2.f, 0.f, 2.f,
-		-1.f, 0.f, 1.f,
-	};
-	const float sobelGradientY[9] =
-	{
-		1.f, 2.f, 1.f,
-		0.f, 0.f, 0.f,
-		-1.f, -2.f, -1.f,
-	};
-
+/*
 	cudaMemcpyToSymbol(convolutionKernelStore,sobelGradientX, sizeof(sobelGradientX),sizeof(gaussianKernel5x5));
 
-	cudaMemcpyToSymbol(convolutionKernelStore, sobelGradientY, sizeof(sobelGradientY),sizeof(gaussianKernel5x5) + sizeof(sobelGradientX));
-
-	const size_t sobelGradientXOffset =	sizeof(gaussianKernel5x5) / sizeof(float);
-
-	const size_t sobelGradientYOffset =	sizeof(sobelGradientX) / sizeof(float) + sobelGradientXOffset;
+	cudaMemcpyToSymbol(convolutionKernelStore, sobelGradientY, sizeof(sobelGradientY),sizeof(gaussianKernel5x5) + sizeof(sobelGradientX));*/
 
 	//Creamos las imagenes compartidas- una inicial y una para el resultado
 	camera >> frame;
-	unsigned char *sourceDataDevice, *blurredDataDevice, *edgesDataDevice;
+	unsigned char *sourceDataDevice, *blurredDataDevice;
 	cv::Mat source(frame.size(), CV_8U,createImageBuffer(frame.size().width * frame.size().height,&sourceDataDevice));
 
-	cv::Mat blurred(frame.size(), CV_8U,createImageBuffer(frame.size().width * frame.size().height,&blurredDataDevice));
-
-	cv::Mat edges(frame.size(), CV_8U,createImageBuffer(frame.size().width * frame.size().height,&edgesDataDevice));
 
 	//Creando dos imagenes temporales en el GPU (para mantener los gradientes de sobel)
-	unsigned char *deviceGradientX, *deviceGradientY;
+	/*unsigned char *deviceGradientX, *deviceGradientY;
 	cudaMalloc(&deviceGradientX, frame.size().width * frame.size().height);
-	cudaMalloc(&deviceGradientY, frame.size().width * frame.size().height);
+	cudaMalloc(&deviceGradientY, frame.size().width * frame.size().height);*/
 
 	//Ciclo de captura de imagenes
 	while (1)
@@ -171,17 +150,9 @@ extern "C" int main(int argc, char** argv)
 			dim3 cthreads(16, 16);
 
 			//configuracion de los parametros de lanzamiento del kernel de pitagoras
-			dim3 pblocks(frame.size().width * frame.size().height / 256);
-			dim3 pthreads(256, 1);
 
 			//Lanzamiento del kernel para ejecucion del filtro de Gauss
-			convolve << <cblocks, cthreads >> > (sourceDataDevice, frame.size().width,frame.size().height, 0, 0, gaussianKernel5x5Offset, 5, 5, blurredDataDevice);
-			//Lanzamiento del gradiente de sobel
-			//primero obtenemos cada uno de los gradientes X y Y 
-			//de kernels de 5x5 y posteriormente obtenemos el producto
-			convolve <<<cblocks, cthreads >>> (blurredDataDevice, frame.size().width,frame.size().height, 2, 2, sobelGradientXOffset, 3, 3, deviceGradientX);
-			convolve <<<cblocks, cthreads >>> (blurredDataDevice, frame.size().width,frame.size().height, 2, 2, sobelGradientYOffset, 3, 3, deviceGradientY);
-			pythagoras <<<pblocks, pthreads >>> (deviceGradientX, deviceGradientY, edgesDataDevice);
+			//convolve << <cblocks, cthreads >> > (sourceDataDevice, frame.size().width,frame.size().height, 0, 0, gaussianKernel5x5Offset, 5, 5, blurredDataDevice);
 
 			cudaThreadSynchronize();
 		}
@@ -197,17 +168,15 @@ extern "C" int main(int argc, char** argv)
 		// mostramos los resultados de los procesamientos
 		cv::imshow("Entrada", frame);
 		cv::imshow("Escala de grises", source);
-		cv::imshow("Blur", blurred);
-		cv::imshow("Sobel", edges);
+		//cv::imshow("Blur", blurred);
 
 		if (cv::waitKey(1) == 27) break;
 	}
 	// Limpieza de variables y fin de la ejecución
-	cudaFreeHost(source.data);
-	cudaFreeHost(blurred.data);
-	cudaFreeHost(edges.data);
-	cudaFree(deviceGradientX);
-	cudaFree(deviceGradientY);
+	//cudaFreeHost(source.data);
+	//cudaFreeHost(blurred.data);
+	//cudaFree(deviceGradientX);
+	//cudaFree(deviceGradientY);
 
 	return 0;
 }
