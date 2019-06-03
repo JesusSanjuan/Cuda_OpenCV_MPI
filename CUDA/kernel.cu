@@ -139,12 +139,13 @@ extern "C" int main(int argc, char** argv)
 	while (1)
 	{
 		//captura de la imagen y almacenamiento a gris
-		camera >> frame;
-		cv::cvtColor(frame, source, CV_BGR2GRAY);
-
-		//creacion del evento de inicio
 		cudaEventRecord(start);
 		{
+			camera >> frame;
+			cv::cvtColor(frame, source, CV_BGR2GRAY);
+
+		//creacion del evento de inicio
+	
 			//configuracion de los parametros de lanzamiento del kernel de convolucion
 			dim3 cblocks(frame.size().width / 16, frame.size().height / 16);
 			dim3 cthreads(16, 16);
